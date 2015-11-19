@@ -1,0 +1,8 @@
+Sample Flaskr application based on tutorial from http://flask.pocoo.org/docs/0.10/tutorial/
+
+to run the server make sure you have python, flaskr installed and then 
+execute the script flaskr/flaskr.py
+
+this will start the server on port 5000
+
+Enjoy!
