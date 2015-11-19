@@ -1,9 +1,9 @@
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
+from DataDefs import *
 import time
 
-DATA_DIR = "../data/"
-
+STATS_TOTAL_BLOGS = 0
 STATS_NUM_BLOGS = 0
 STATS_NUM_BLOGS_WITHOUT_SC = 0
 STATS_NUM_BLOGS_WITHOUT_GENRES = 0
@@ -115,7 +115,7 @@ def scrape_each_blog(url):
                 sc_links.append(driver.find_element_by_class_name("icon-sc").get_attribute("href"))
                 sng_cnt = sng_cnt + 1
             except:
-                break
+                continue
 
         print "Blog number ", STATS_NUM_BLOGS, " collected ", sng_cnt, " songs"
         driver.quit()
@@ -130,6 +130,7 @@ def scrape_each_blog(url):
 
 def persist_in_text_files():
 
+    global STATS_TOTAL_BLOGS
     global STATS_NUM_BLOGS
     global STATS_NUM_BLOGS_WITHOUT_SC
     global STATS_NUM_BLOGS_WITHOUT_FOLLOWERS
@@ -141,10 +142,12 @@ def persist_in_text_files():
     
     country_wise_urls = scrape_countries()
     num_countries = len(country_wise_urls)
+    failed_list = []
 
-    f = open(DATA_DIR+"countrywise_blog_links.txt", "w")
-    f_list = open(DATA_DIR+"countrywise_blog_list.txt", "w")
-    f_blg = open(DATA_DIR+"blog_features.txt", "w")
+    f = open(DATA_DIR+COUNTRY_BLOG_LINKS, "w")
+    f_list = open(DATA_DIR+COUNTRY_PAGES, "w")
+    f_blg = open(DATA_DIR+BLOG_FEATURES, "w")
+    f_failed_list = open(DATA_DIR+FAILED_SITES, "w")
 
     for c_url in country_wise_urls:
         country = c_url.split("/")[-1]
@@ -154,15 +157,16 @@ def persist_in_text_files():
 
         # scrape each blog_link for blog characterisitcs
         for bl in blog_list:
+            STATS_TOTAL_BLOGS = STATS_TOTAL_BLOGS + 1
             # be nice .... take a break
             time.sleep(10)
 
-            STATS_NUM_BLOGS = STATS_NUM_BLOGS + 1
             # process blog
             blg_id = bl.split("/")[-1]
             (blog_link, genres_list, track_num, followers_num, sc_links) = scrape_each_blog(bl)
             if blog_link != None:
                 # collect stats
+                STATS_NUM_BLOGS = STATS_NUM_BLOGS + 1
                 STATS_AVG_SONG_COUNT += len(sc_links)
                 STATS_AVG_GENRE_COUNT += len(genres_list)
                 # persist
@@ -171,11 +175,16 @@ def persist_in_text_files():
                         " "+track_num+" "+followers_num+" "+'|'.join(sc_links)+"\n")
             else:
                 print "Failed to scrape blog!!!", bl
+                failed_list.append(bl)
                 STATS_SCRAPE_FAILURES = STATS_SCRAPE_FAILURES + 1
+                time.sleep(60)  # go away for a while ... you have been a nuisance
 
+    # do something with failed list
+    #persist them for now for processing in second phase
+    f_failed_list.write('|'.join(failed_list))
 
     print  "FINISHED SCRAPING ... PRINTING STATS"
-    print  "STATS_NUM_BLOGS ", STATS_NUM_BLOGS
+    print  "STATS_NUM_BLOGS ", STATS_TOTAL_BLOGS
     print  "STATS_BLOGS_PER_COUNTRY ", (STATS_NUM_BLOGS/len(num_countries))
     print  "STATS_NUM_BLOGS_WITHOUT_SC ", STATS_NUM_BLOGS_WITHOUT_SC
     print  "STATS_NUM_BLOGS_WITHOUT_FOLLOWERS ", STATS_NUM_BLOGS_WITHOUT_FOLLOWERS
