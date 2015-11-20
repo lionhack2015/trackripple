@@ -21,6 +21,8 @@ __PROBLEM 2:__ How many songs can we run through Echonest API? 798 blogs x 10 so
 
 __PROBLEM 3:__ How we gonna train our genres? We need some reference songs for each of them to understand the parameter benchmarks.
 
+__PROBLEM 4:__ Can we come up with narrower list of genres? 99 options do not seem to be lean classification.
+
 ##PRODUCTION ROADMAP
 
 - UI design and development (expand on this further)
