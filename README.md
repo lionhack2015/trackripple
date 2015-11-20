@@ -16,7 +16,9 @@
 - return top 5 results as the target for song distribution.
 
 __PROBLEM 1:__ What we gonna call 'distance'? Euclidian distance?
+
 __PROBLEM 2:__ How many songs can we run through Echonest API? 798 blogs x 10 songs = 7,980 API requests + genre training requests — might be a problem.
+
 __PROBLEM 3:__ How we gonna train our genres? We need some reference songs for each of them to understand the parameter benchmarks.
 
 ##PRODUCTION ROADMAP
