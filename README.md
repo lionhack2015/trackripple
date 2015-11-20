@@ -1,7 +1,21 @@
-What we have right now:
+##What we have right now
 
-  - scrapping script that returns all the blogs on hypem with a certain set of parameters that we can extract directly from hypem.
+  - scrapping script that returns all the blog urls on hypem
   - running empty database instance on AWS
+
+##Algorithm design
+
+- user uploads soundcloud link to his track and specifies three genres he relates his track to;
+- link is uploaded to echonest, set of parameters returned;
+- these parameters are compared with the parameter benchmarks for three user-specified genres; closest match is defined as a leading genre;
+- all blogs are subset to those who write about leading genre;
+- we access all the songs from each blog from this subset that are falling into the leading genre category;
+  - calculate distance from uploaded song to each of the songs from a certain blog;
+  - average the results and store it as a proxy for song conformity with this blog's style;
+  - rank current subset of blogs by this average distance to uploaded song ascendingly;
+- return top 5 results as the target for song distribution.
+
+__PROBLEM:__ What we gonna call 'distance'? Euclidian distance?
 
 ##PRODUCTION ROADMAP
 
