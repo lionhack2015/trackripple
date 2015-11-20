@@ -11,6 +11,9 @@ STATS_NUM_BLOGS_WITHOUT_FOLLOWERS = 0
 STATS_AVG_SONG_COUNT = 0
 STATS_AVG_GENRE_COUNT = 0
 STATS_SCRAPE_FAILURES = 0
+
+NUM_SONGS_PER_BLOG = 25
+NUM_TRIES = 50
     
 def scrape_country_url(url):
  
@@ -102,22 +105,26 @@ def scrape_each_blog(url):
         # recent soundcloud music links
         sc_links = []
         # TODO: resolve this to acutal sound cloud links
-        try:
-            sc_links.append(driver.find_element_by_class_name("icon-sc").get_attribute("href"))
-            play = driver.find_element_by_id("playerPlay").click()
-        except:
-            STATS_NUM_BLOGS_WITHOUT_SC = STATS_NUM_BLOGS_WITHOUT_SC + 1
+        play = driver.find_element_by_id("playerPlay").click()
 
         sng_cnt = 0
-        while sng_cnt < 50:
+        num_tries = 0
+        while sng_cnt < NUM_SONGS_PER_BLOG and num_tries < NUM_TRIES:
+            num_tries = num_tries + 1
             try:
-                next = driver.find_element_by_id("playerNext").click()
                 sc_links.append(driver.find_element_by_class_name("icon-sc").get_attribute("href"))
                 sng_cnt = sng_cnt + 1
+                driver.find_element_by_id("playerNext").click()
             except:
+                driver.find_element_by_id("playerNext").click()
                 continue
 
-        print "Blog number ", STATS_NUM_BLOGS, " collected ", sng_cnt, " songs"
+        print sng_cnt, num_tries
+
+        if sng_cnt == 0:
+            STATS_NUM_BLOGS_WITHOUT_SC = STATS_NUM_BLOGS_WITHOUT_SC + 1
+
+        print url, "Blog number ", STATS_NUM_BLOGS, " collected ", sng_cnt, " songs"
         driver.quit()
         return (blog_link, genres_list, track_num, followers_num, sc_links)
 
@@ -138,6 +145,7 @@ def persist_in_text_files():
     global STATS_AVG_SONG_COUNT
     global STATS_AVG_GENRE_COUNT
     global STATS_SCRAPE_FAILURES
+    global NUM_SONGS_PER_BLOG
 
     
     country_wise_urls = scrape_countries()
@@ -199,6 +207,7 @@ def persist_in_text_files():
 
 if __name__ == "__main__":
     persist_in_text_files()
+    #scrape_each_blog("http://hypem.com/blog/consequence+of+sound/4436")
 
 
 
