@@ -1,7 +1,20 @@
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from DataDefs import *
+import mysql.connector
 import time
+
+# MYSQL_USER = "adm"
+# MYSQL_PASSWORD = "circulately"
+# MYSQL_HOST = "trackripple.clbystynrx1v.us-west-2.rds.amazonaws.com"
+# MYSQL_DB = "trackrippledb"
+# PERSIST_DB = False
+
+MYSQL_USER = "root"
+MYSQL_PASSWORD = "root"
+MYSQL_HOST = "localhost"
+MYSQL_DB = "trackrippledb"
+PERSIST_DB = True
 
 STATS_TOTAL_BLOGS = 0
 STATS_NUM_BLOGS = 0
@@ -12,9 +25,21 @@ STATS_AVG_SONG_COUNT = 0
 STATS_AVG_GENRE_COUNT = 0
 STATS_SCRAPE_FAILURES = 0
 
-NUM_SONGS_PER_BLOG = 25
+NUM_SONGS_PER_BLOG = 10
 NUM_TRIES = 50
-    
+
+BLOG_NAME_IGNORE_CHARS = len("Latest Posts from ")
+
+def db_connect():
+    return mysql.connector.connect(user = MYSQL_USER,
+                                   password = MYSQL_PASSWORD,
+                                   host = MYSQL_HOST,
+                                   database = MYSQL_DB)
+
+def db_disconnect(cnx):
+    cnx.close()
+
+
 def scrape_country_url(url):
  
     # Load WebDriver and navigate to the page url.
@@ -80,6 +105,8 @@ def scrape_each_blog(url):
     # blog link
     try:
         blog_link = driver.find_elements_by_class_name('visit-blog')[0].find_element_by_xpath('.//a').get_attribute('href')
+        blog_name = driver.find_elements_by_id('message')[0].find_element_by_xpath('.//h1').text
+        blog_name = blog_name[BLOG_NAME_IGNORE_CHARS:]
 
         # get blog genres
         genres_list = []
@@ -112,7 +139,8 @@ def scrape_each_blog(url):
         while sng_cnt < NUM_SONGS_PER_BLOG and num_tries < NUM_TRIES:
             num_tries = num_tries + 1
             try:
-                sc_links.append(driver.find_element_by_class_name("icon-sc").get_attribute("href"))
+                hypem_sc_link = driver.find_element_by_class_name("icon-sc").get_attribute("href")
+                sc_links.append(hypem_sc_link)
                 sng_cnt = sng_cnt + 1
                 driver.find_element_by_id("playerNext").click()
             except:
@@ -126,14 +154,50 @@ def scrape_each_blog(url):
 
         print url, "Blog number ", STATS_NUM_BLOGS, " collected ", sng_cnt, " songs"
         driver.quit()
-        return (blog_link, genres_list, track_num, followers_num, sc_links)
+        return (blog_link, blog_name, genres_list, track_num, followers_num, sc_links)
 
     except:
-        return (None, None, None, None, None) #unauthorized
+        return (None, None, None, None, None, None) #unauthorized
 
 
 #blg_list_us = scrape_url("http://hypem.com/blogs/country/US")
 #scrape_each_blog("http://hypem.com/blog/abduction+radiation/21500")
+
+
+def write_blog_to_db(f_blogs, blg_id, blog_name, blog_link, track_num, followers_num):
+    query = 'INSERT INTO blogs (bid, bname, burl, tracks_posted, followers) VALUES ({0}, {1}, {2}, {3}, {4})'.format(blg_id, blog_name, blog_link, track_num, followers_num)
+    f_blogs.write(query+"\n")
+
+def write_blog_genres(f_blog_genres, blog_id, genres_list):
+    for g in genres_list:
+        if len(g) != 0:
+            query = 'INSERT INTO blog_genres (bid, gname) VALUES ({0}, {1})'.format(blog_id, g)
+            #print query
+            f_blog_genres.write(query + "\n")
+
+def write_genres(f_genres, genres, genres_list):
+    for g in genres_list:
+        if len(g) != 0 and g not in genres :
+            genres[g] = g
+            query = "INSERT INTO genres (gname) VALUES ({0})".format(g)
+            #print query
+            f_genres.write(query+"\n")
+
+def write_blog_songs(f_blog_songs, blog_id, ):
+    pass
+
+def hypem_sc_link_resolver(hypem_sc_links):
+    sc_links = []
+    driver2 = webdriver.Firefox()
+    for sc in hypem_sc_links:
+        try:
+            driver2.get(sc)
+            sc_links.append(driver2.current_url)
+        except:
+            driver2.close()
+            return []
+    driver2.close()
+    return sc_links
 
 def persist_in_text_files():
 
@@ -147,7 +211,8 @@ def persist_in_text_files():
     global STATS_SCRAPE_FAILURES
     global NUM_SONGS_PER_BLOG
 
-    
+    genres = {}
+
     country_wise_urls = scrape_countries()
     num_countries = len(country_wise_urls)
     failed_list = []
@@ -156,6 +221,10 @@ def persist_in_text_files():
     f_list = open(DATA_DIR+COUNTRY_PAGES, "w")
     f_blg = open(DATA_DIR+BLOG_FEATURES, "w")
     f_failed_list = open(DATA_DIR+FAILED_SITES, "w")
+    f_blogs = open(DATA_DIR +"blogs.sql", "w")
+    f_genres = open(DATA_DIR +"genres.sql", "w")
+    f_blog_genres = open(DATA_DIR + "blog_genres.sql", "w")
+    #f_blog_songs = open(DATA_DIR + "blog_songs.sql", "w")
 
     for c_url in country_wise_urls:
         country = c_url.split("/")[-1]
@@ -167,19 +236,26 @@ def persist_in_text_files():
         for bl in blog_list:
             STATS_TOTAL_BLOGS = STATS_TOTAL_BLOGS + 1
             # be nice .... take a break
-            time.sleep(10)
+            time.sleep(1)
 
             # process blog
             blg_id = bl.split("/")[-1]
-            (blog_link, genres_list, track_num, followers_num, sc_links) = scrape_each_blog(bl)
+            (blog_link, blog_name, genres_list, track_num, followers_num, sc_links) = scrape_each_blog(bl)
             if blog_link != None:
                 # collect stats
                 STATS_NUM_BLOGS = STATS_NUM_BLOGS + 1
                 STATS_AVG_SONG_COUNT += len(sc_links)
                 STATS_AVG_GENRE_COUNT += len(genres_list)
                 # persist
+                write_blog_to_db(f_blogs, blg_id, blog_name, blog_link, track_num, followers_num)
+                if genres is not None:
+                    write_genres(f_genres, genres, genres_list)
+                    write_blog_genres(f_blog_genres, blg_id, genres_list)
+                if sc_links is not None:
+                    sc_links_resolved = hypem_sc_link_resolver(sc_links)
+                    #write_blog_songs(f_blog_songs, blg_id, sc_links_resolved)
                 f.write(country+" "+bl+"\n")
-                f_blg.write(blg_id+" "+blog_link+" "+'|'.join(genres_list)+
+                f_blg.write(blg_id+" "+blog_link+" "+blog_name+" "+'|'.join(genres_list)+
                         " "+track_num+" "+followers_num+" "+'|'.join(sc_links)+"\n")
             else:
                 print "Failed to scrape blog!!!", bl
@@ -204,11 +280,16 @@ def persist_in_text_files():
     f.close()
     f_list.close()
     f_blg.close()
+    f_failed_list.close()
+    f_blogs.close()
+    f_genres.close()
+    f_blog_genres.close()
+    #f_blog_song.close()
+
 
 if __name__ == "__main__":
     persist_in_text_files()
-    #scrape_each_blog("http://hypem.com/blog/consequence+of+sound/4436")
-
-
-
+    #write_blog_to_db(cnx, 11, "blah" , "blah", 1, 1)
+    #(blog_link, blog_name, genres_list, track_num, followers_num, sc_links) = scrape_each_blog("http://hypem.com/blog/consequence+of+sound/4436")
+    #print hypem_sc_link_resolver(sc_links)
 
